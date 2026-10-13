@@ -1,0 +1,188 @@
+@import "tailwindcss";
+
+/* ==========================================================================
+   Scrollytelling design system — tokens
+   Editorial, cinematic, premium. Warm off-white editorial surfaces,
+   deep charcoal ink, restrained ochre accent.
+   ========================================================================== */
+
+:root {
+  /* Surfaces */
+  --paper: #f7f4ef;          /* warm off-white editorial background */
+  --paper-raised: #fdfbf8;   /* cards / raised panels */
+  --paper-sunken: #efeae1;   /* sunken wells */
+  --ink: #171614;            /* deep charcoal text */
+  --ink-soft: #56514a;       /* secondary text */
+  --ink-faint: #8b857b;      /* tertiary / meta */
+
+  /* Accent */
+  --accent: #b4622b;         /* burnt ochre */
+  --accent-strong: #8f4c1f;
+  --accent-soft: #f0e2d5;
+  --accent-contrast: #fffaf4;
+
+  /* Support */
+  --success: #2f6b4f;
+  --warning: #a5761f;
+  --danger: #a83b2c;
+  --info: #3a5a8f;
+
+  /* Borders & shadows */
+  --line: #e2dcd1;
+  --line-strong: #cec6b7;
+  --shadow-xs: 0 1px 2px rgba(23, 22, 20, 0.04);
+  --shadow-sm: 0 1px 3px rgba(23, 22, 20, 0.06), 0 1px 2px rgba(23, 22, 20, 0.04);
+  --shadow-md: 0 6px 16px -4px rgba(23, 22, 20, 0.10), 0 2px 6px -2px rgba(23, 22, 20, 0.06);
+  --shadow-lg: 0 24px 48px -16px rgba(23, 22, 20, 0.18), 0 8px 20px -8px rgba(23, 22, 20, 0.08);
+
+  /* Radii */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --radius-full: 999px;
+}
+
+@theme inline {
+  --color-paper: var(--paper);
+  --color-paper-raised: var(--paper-raised);
+  --color-paper-sunken: var(--paper-sunken);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-ink-faint: var(--ink-faint);
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-contrast: var(--accent-contrast);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --color-info: var(--info);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --radius-xl: var(--radius-xl);
+
+  --shadow-xs: var(--shadow-xs);
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
+
+  --font-sans: var(--font-body), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-display), Georgia, "Times New Roman", serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* -------------------------------------------------------------------------
+   Base
+   ------------------------------------------------------------------------- */
+
+* {
+  border-color: var(--line);
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
+  font-feature-settings: "kern", "liga", "onum";
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+/* Visible, consistent keyboard focus everywhere */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+h1, h2, h3, h4 {
+  font-family: var(--font-display), Georgia, serif;
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+  text-wrap: balance;
+}
+
+p {
+  text-wrap: pretty;
+}
+
+/* -------------------------------------------------------------------------
+   Utilities
+   ------------------------------------------------------------------------- */
+
+.container-wide { width: 100%; max-width: 1280px; margin-inline: auto; padding-inline: 1.5rem; }
+.container-narrow { width: 100%; max-width: 880px; margin-inline: auto; padding-inline: 1.5rem; }
+
+.text-display {
+  font-family: var(--font-display), Georgia, serif;
+  letter-spacing: -0.025em;
+  line-height: 1.02;
+}
+
+.eyebrow {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.hairline { border-top: 1px solid var(--line); }
+
+.grain::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.035;
+  background-image: radial-gradient(var(--ink) 0.5px, transparent 0.5px);
+  background-size: 4px 4px;
+}
+
+/* Skeleton shimmer for loading states */
+.skeleton {
+  background: linear-gradient(90deg, var(--paper-sunken) 25%, #e6dfd3 37%, var(--paper-sunken) 63%);
+  background-size: 400% 100%;
+  animation: skeleton-sweep 1.4s ease infinite;
+}
+@keyframes skeleton-sweep {
+  0% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* -------------------------------------------------------------------------
+   Reduced motion — global safety net
+   ------------------------------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* -------------------------------------------------------------------------
+   Print (published stories should print cleanly)
+   ------------------------------------------------------------------------- */
+@media print {
+  .no-print { display: none !important; }
+  body { background: #fff; }
+}

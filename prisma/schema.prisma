@@ -1,0 +1,431 @@
+// Scrollytelling platform database schema
+// Managed with Prisma Migrate. See README for setup.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Identity (Auth.js / Prisma adapter compatible)
+// ---------------------------------------------------------------------------
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  emailVerified DateTime?
+  name          String?
+  image         String?
+  passwordHash  String?
+  onboardedAt   DateTime?
+  // Onboarding answers (what to create, audience, style, existing content)
+  onboarding    Json?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts    Account[]
+  sessions    Session[]
+  memberships Membership[]
+  stories     Story[]       @relation("StoryAuthor")
+  assets      Asset[]
+  jobs        GenerationJob[]
+  submissions FormSubmission[] @relation("SubmissionAuthor")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ---------------------------------------------------------------------------
+// Workspaces & membership
+// ---------------------------------------------------------------------------
+
+enum Role {
+  OWNER
+  ADMIN
+  EDITOR
+  VIEWER
+}
+
+model Workspace {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  ownerId   String
+  plan      Plan     @default(FREE)
+  settings  Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memberships   Membership[]
+  stories       Story[]
+  assets        Asset[]
+  jobs          GenerationJob[]
+  usage         UsageRecord[]
+  subscriptions Subscription[]
+  billingEvents BillingEvent[]
+  domains       Domain[]
+  formSubmissions FormSubmission[]
+  auditLogs     AuditLog[]
+
+  @@index([ownerId])
+}
+
+model Membership {
+  id          String   @id @default(cuid())
+  workspaceId String
+  userId      String
+  role        Role     @default(EDITOR)
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+  @@index([userId])
+}
+
+// ---------------------------------------------------------------------------
+// Stories, versions & templates
+// ---------------------------------------------------------------------------
+
+enum StoryStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum StoryType {
+  ONE_PAGE
+  PRODUCT_SHOWCASE
+  LANDING_PAGE
+  ABOUT_US
+  BRAND_STORY
+  PITCH_DECK
+  EDUCATIONAL
+  LONG_FORM_ARTICLE
+  ANNUAL_REPORT
+  DATA_STORY
+  WHITE_PAPER
+  RESEARCH_REPORT
+  SALES_PROPOSAL
+  CAMPAIGN_MICROSITE
+  PORTFOLIO
+  CASE_STUDY
+  TIMELINE
+  MAGAZINE_FEATURE
+  EVENT_PROMOTION
+  OTHER
+}
+
+model Story {
+  id           String      @id @default(cuid())
+  workspaceId  String
+  authorId     String
+  title        String
+  slug         String
+  description  String?
+  storyType    StoryType   @default(ONE_PAGE)
+  status       StoryStatus @default(DRAFT)
+  // Validated structured story document (see src/lib/story/schema.ts)
+  document     Json
+  theme        String      @default("editorial")
+  seo          Json?
+  // Monotonic revision used for optimistic-concurrency autosave
+  revision     Int         @default(1)
+  publishedVersionId String?
+  templateId   String?
+  viewCount    Int         @default(0)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  deletedAt    DateTime?
+
+  workspace Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  author    User           @relation("StoryAuthor", fields: [authorId], references: [id])
+  versions  StoryVersion[]
+  template  Template?      @relation(fields: [templateId], references: [id])
+  domains   Domain[]
+  events    AnalyticsEvent[]
+  submissions FormSubmission[]
+
+  @@unique([workspaceId, slug])
+  @@index([workspaceId, status])
+  @@index([workspaceId, updatedAt])
+  @@index([authorId])
+}
+
+model StoryVersion {
+  id          String   @id @default(cuid())
+  storyId     String
+  version     Int
+  // Frozen snapshot of the story document at publish time
+  document    Json
+  title       String
+  description String?
+  seo         Json?
+  createdBy   String?
+  publishedAt DateTime @default(now())
+
+  story Story @relation(fields: [storyId], references: [id], onDelete: Cascade)
+
+  @@unique([storyId, version])
+  @@index([storyId])
+}
+
+model Template {
+  id          String    @id @default(cuid())
+  title       String
+  slug        String    @unique
+  description String
+  category    String
+  storyType   StoryType
+  // Full structured document used as a starting point
+  document    Json
+  version     Int       @default(1)
+  thumbnail   String?
+  tags        String[]  @default([])
+  isSystem    Boolean   @default(true)
+  authorId    String?
+  workspaceId String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  stories Story[]
+
+  @@index([category])
+  @@index([storyType])
+}
+
+// ---------------------------------------------------------------------------
+// Assets
+// ---------------------------------------------------------------------------
+
+model Asset {
+  id          String   @id @default(cuid())
+  workspaceId String
+  uploadedBy  String?
+  filename    String
+  mimeType    String
+  size        Int
+  storageKey  String
+  url         String
+  width       Int?
+  height      Int?
+  kind        String   @default("image") // image | video | document | logo | font
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  uploader  User?     @relation(fields: [uploadedBy], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// AI generation & usage accounting
+// ---------------------------------------------------------------------------
+
+enum JobStatus {
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  FAILED
+  CANCELLED
+}
+
+model GenerationJob {
+  id          String    @id @default(cuid())
+  workspaceId String
+  userId      String
+  storyId     String?
+  status      JobStatus @default(QUEUED)
+  step        String    @default("queued")
+  progress    Int       @default(0)
+  input       Json
+  output      Json?
+  error       String?
+  demo        Boolean   @default(false)
+  creditsUsed Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  completedAt DateTime?
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id])
+
+  @@index([workspaceId, createdAt])
+  @@index([userId])
+}
+
+model UsageRecord {
+  id          String   @id @default(cuid())
+  workspaceId String
+  kind        String // ai_generation | publish | form_submission
+  amount      Int      @default(1)
+  jobId       String?
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Billing
+// ---------------------------------------------------------------------------
+
+enum Plan {
+  FREE
+  STARTER
+  PRO
+  PRO_PLUS
+  ENTERPRISE
+}
+
+model Subscription {
+  id               String   @id @default(cuid())
+  workspaceId      String
+  plan             Plan
+  status           String   @default("active") // active | past_due | canceled | trialing
+  billingCycle     String   @default("monthly") // monthly | yearly
+  provider         String   @default("development")
+  providerRef      String?
+  currentPeriodEnd DateTime?
+  cancelAtPeriodEnd Boolean @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@unique([provider, providerRef])
+}
+
+model BillingEvent {
+  id          String   @id @default(cuid())
+  workspaceId String?
+  provider    String   @default("development")
+  eventId     String   @unique // idempotency key
+  type        String
+  payload     Json
+  processedAt DateTime @default(now())
+
+  workspace Workspace? @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId])
+}
+
+model Domain {
+  id                String   @id @default(cuid())
+  workspaceId       String
+  storyId           String?
+  hostname          String   @unique
+  status            String   @default("pending") // pending | verifying | active | error
+  verificationToken String
+  verifiedAt        DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  story     Story?    @relation(fields: [storyId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId])
+}
+
+// ---------------------------------------------------------------------------
+// Analytics & forms
+// ---------------------------------------------------------------------------
+
+model AnalyticsEvent {
+  id        String   @id @default(cuid())
+  storyId   String
+  versionId String?
+  type      String // page_view | section_view | cta_click | form_submit | scroll_depth
+  sessionId String
+  sectionId String?
+  path      String?
+  referrer  String?
+  country   String?
+  device    String?
+  value     Int?
+  createdAt DateTime @default(now())
+
+  story Story @relation(fields: [storyId], references: [id], onDelete: Cascade)
+
+  @@index([storyId, createdAt])
+  @@index([storyId, type])
+  @@index([sessionId])
+}
+
+model FormSubmission {
+  id          String   @id @default(cuid())
+  storyId     String
+  workspaceId String
+  sectionId   String
+  data        Json
+  status      String   @default("new") // new | read | spam
+  ipHash      String?
+  userId      String?
+  createdAt   DateTime @default(now())
+
+  story     Story     @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User?     @relation("SubmissionAuthor", fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([storyId, createdAt])
+  @@index([workspaceId, status])
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  workspaceId String
+  actorId     String?
+  action      String
+  target      String?
+  metadata    Json?
+  ipHash      String?
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, createdAt])
+}
